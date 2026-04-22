@@ -518,4 +518,8 @@ async def scan_candidates(limit: int = 10) -> tuple[list[dict], dict]:
 
 @app.get("/")
 async def root():
-    return FileResponse("index.html")
+    import os
+    from fastapi.responses import HTMLResponse
+    index_path = os.path.join(os.path.dirname(__file__), "index.html")
+    with open(index_path, "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
