@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>CANDIDATE ENGINE v2 · 눈(👁) + 신경계</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700;900&family=Bebas+Neue&display=swap');
+
+:root {
+  --bg:      #070a0f;
+  --bg2:     #0d1219;
+  --bg3:     #131922;
+  --green:   #00d28c;
+  --green2:  #00ffaa;
+  --green-d: #00d28c30;
+  --red:     #ff4560;
+  --red-d:   #ff456025;
+  --gold:    #f0b429;
+  --gold-d:  #f0b42920;
+  --white:   #e8f0ee;
+  --gray:    #4a6070;
+  --gray2:   #1e2a35;
+  --border:  rgba(0,210,140,0.15);
+  --border2: rgba(0,210,140,0.07);
+
+  /* 상태 색상 */
+  --idle:   #2a3a48;
+  --watch:  #1a4a8a;
+  --watch-t:#4a9aff;
+  --armed:  #7a4a00;
+  --armed-t:#f0b429;
+  --fire:   #8a0020;
+  --fire-t: #ff2255;
+  --fire-g: #ff4466;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { background:var(--bg); color:var(--white); font-family:'Noto Sans KR',sans-serif; min-height:100vh; overflow-x:hidden; }
+
+body::before {
+  content:''; position:fixed; inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,210,140,0.012) 2px,rgba(0,210,140,0.012) 4px);
+  pointer-events:none; z-index:9999;
+}
+
+/* ── HEADER ── */
+.header {
+  position:sticky; top:0; z-index:100;
+  background:rgba(7,10,15,0.96); backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  padding:0 14px; height:54px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+
+.logo { display:flex; align-items:center; gap:10px; }
+
+.eye-wrap {
+  width:30px; height:30px; border:1.5px solid var(--green);
+  border-radius:50%; display:flex; align-items:center; justify-content:center;
+  position:relative;
+}
+.eye-wrap::after {
+  content:''; position:absolute;
+  width:9px; height:9px; background:var(--green); border-radius:50%;
+  animation:blink 3s infinite;
+}
+@keyframes blink { 0%,90%,100%{transform:scaleY(1);opacity:1} 95%{transform:scaleY(0.05);opacity:0.2} }
+
+.logo-text { font-family:'Bebas Neue',sans-serif; font-size:19px; letter-spacing:3px; color:var(--green); }
+.logo-sub  { font-family:'Space Mono',monospace; font-size:8px; color:var(--gray); letter-spacing:1.5px; margin-top:1px; }
+
+.header-r { display:flex; align-items:center; gap:8px; }
+
+.limit-toggle { display:flex; background:var(--bg3); border:1px solid var(--border); border-radius:4px; overflow:hidden; }
+.limit-btn { padding:6px 12px; font-family:'Space Mono',monospace; font-size:11px; font-weight:700; color:var(--gray); background:none; border:none; cursor:pointer; }
+.limit-btn.active { background:var(--green-d); color:var(--green); }
+
+.scan-btn {
+  display:flex; align-items:center; gap:7px;
+  padding:8px 16px; background:var(--green); color:var(--bg);
+  border:none; border-radius:4px; font-family:'Space Mono',monospace;
+  font-size:11px; font-weight:700; letter-spacing:2px; cursor:pointer; transition:all 0.2s;
+}
+.scan-btn:hover { background:var(--green2); }
+.scan-btn.loading { background:var(--gray2); color:var(--green); pointer-events:none; }
+.scan-btn .dot { width:6px; height:6px; background:var(--bg); border-radius:50%; }
+.scan-btn.loading .dot { background:var(--green); animation:pd 0.6s infinite alternate; }
+@keyframes pd { from{opacity:0.3;transform:scale(0.7)} to{opacity:1;transform:scale(1.2)} }
+
+.kst { font-family:'Space Mono',monospace; font-size:11px; color:var(--gray); min-width:72px; text-align:right; }
+
+/* ── STATUS BAR ── */
+.status-bar {
+  padding:8px 14px; background:var(--bg2); border-bottom:1px solid var(--border2);
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  font-family:'Space Mono',monospace; font-size:10px;
+}
+.si { display:flex; align-items:center; gap:5px; color:var(--gray); }
+.si .v { color:var(--green); font-weight:700; }
+.si.warn .v { color:var(--gold); }
+.sdot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:gp 2s infinite; }
+@keyframes gp { 0%,100%{box-shadow:0 0 4px var(--green)} 50%{box-shadow:0 0 10px var(--green)} }
+
+/* ── ARMED TICKER ── */
+.armed-ticker {
+  display:none; padding:8px 14px;
+  background:rgba(240,180,41,0.06); border-bottom:1px solid rgba(240,180,41,0.2);
+  font-family:'Space Mono',monospace; font-size:11px;
+  overflow:hidden; white-space:nowrap;
+}
+.armed-ticker.show { display:block; }
+.ticker-inner { display:inline-flex; gap:24px; animation:ticker 20s linear infinite; }
+@keyframes ticker { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+.ticker-item { color:var(--armed-t); display:flex; align-items:center; gap:6px; }
+.ticker-item::before { content:'🔒'; font-size:10px; }
+
+/* ── FIRE BANNER ── */
+.fire-banner {
+  display:none; padding:10px 14px;
+  background:rgba(255,34,85,0.1); border-bottom:2px solid var(--fire-g);
+  animation:fire-pulse 1s infinite;
+}
+.fire-banner.show { display:block; }
+@keyframes fire-pulse { 0%,100%{background:rgba(255,34,85,0.1)} 50%{background:rgba(255,34,85,0.2)} }
+.fire-banner-inner { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.fire-badge { font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:3px; color:var(--fire-g); }
+.fire-item { font-family:'Space Mono',monospace; font-size:10px; color:#ffaaaa; }
+
+/* ── SCANNER NOTE ── */
+.note {
+  display:none; margin:10px 14px 0;
+  padding:8px 12px; background:var(--gold-d);
+  border:1px solid rgba(240,180,41,0.2); border-left:3px solid var(--gold);
+  border-radius:4px; font-size:10px; color:#907830;
+  font-family:'Space Mono',monospace; line-height:1.6;
+}
+.note.show { display:block; }
+.note strong { color:var(--gold); }
+
+/* ── MAIN ── */
+.main { padding:10px 14px 80px; }
+
+/* ── LOADING ── */
+.loading { display:none; flex-direction:column; align-items:center; justify-content:center; padding:70px 20px; gap:18px; }
+.loading.show { display:flex; }
+.radar { width:110px; height:110px; position:relative; }
+.rr { position:absolute; border:1px solid var(--green); border-radius:50%; opacity:0.25; }
+.rr:nth-child(1){inset:0} .rr:nth-child(2){inset:18px;opacity:0.15} .rr:nth-child(3){inset:36px;opacity:0.08}
+.rsweep { position:absolute; inset:0; border-radius:50%; background:conic-gradient(from 0deg,transparent 270deg,rgba(0,210,140,0.4) 360deg); animation:sw 1.5s linear infinite; }
+@keyframes sw { to{transform:rotate(360deg)} }
+.rdot { position:absolute; width:5px; height:5px; background:var(--green); border-radius:50%; box-shadow:0 0 6px var(--green); animation:bd 0.8s infinite alternate; }
+@keyframes bd { from{opacity:0.3} to{opacity:1} }
+.ltext { font-family:'Space Mono',monospace; font-size:11px; color:var(--green); letter-spacing:3px; animation:tb 1s infinite; }
+@keyframes tb { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── EMPTY ── */
+.empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:70px 20px; gap:14px; color:var(--gray); font-family:'Space Mono',monospace; font-size:11px; letter-spacing:2px; text-align:center; }
+
+/* ── SUMMARY ROW ── */
+.summary { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:10px; }
+.sc { background:var(--bg2); border:1px solid var(--border2); border-radius:4px; padding:10px 8px; text-align:center; }
+.sc .sv { font-family:'Bebas Neue',sans-serif; font-size:26px; line-height:1; display:block; }
+.sc .sl { font-family:'Space Mono',monospace; font-size:8px; color:var(--gray); letter-spacing:1px; text-transform:uppercase; margin-top:2px; display:block; }
+.c-green{color:var(--green)} .c-gold{color:var(--gold)} .c-pink{color:#ff6ef7} .c-white{color:var(--white)} .c-fire{color:var(--fire-g)} .c-watch{color:var(--watch-t)}
+
+/* ── CARDS ── */
+.cards { display:flex; flex-direction:column; gap:9px; }
+
+.card {
+  background:var(--bg2); border:1px solid var(--border2);
+  border-radius:6px; overflow:hidden;
+  opacity:0; transform:translateY(14px);
+  animation:cin 0.4s forwards;
+  transition:border-color 0.2s;
+}
+@keyframes cin { to{opacity:1;transform:translateY(0)} }
+.card:hover { border-color:var(--border); }
+
+.card.grade-S { border-left:3px solid #ff6ef7; }
+.card.grade-A { border-left:3px solid var(--green); }
+.card.grade-B { border-left:3px solid var(--gold); }
+
+/* FIRE 카드 강조 */
+.card.state-FIRE {
+  border:1px solid rgba(255,34,85,0.5);
+  border-left:3px solid var(--fire-g);
+  background:rgba(255,34,85,0.04);
+  animation:cin 0.4s forwards, card-fire 2s infinite;
+}
+@keyframes card-fire { 0%,100%{border-color:rgba(255,34,85,0.5)} 50%{border-color:rgba(255,34,85,0.9)} }
+
+/* ── 상태 배지 ── */
+.state-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:4px 10px; border-radius:3px;
+  font-family:'Space Mono',monospace; font-size:10px; font-weight:700;
+  letter-spacing:1.5px; text-transform:uppercase;
+}
+.state-badge.IDLE  { background:var(--idle);   color:var(--gray);    border:1px solid rgba(74,96,112,0.3); }
+.state-badge.WATCH { background:rgba(26,74,138,0.4); color:var(--watch-t); border:1px solid rgba(74,154,255,0.3); }
+.state-badge.ARMED { background:rgba(122,74,0,0.5);  color:var(--armed-t); border:1px solid rgba(240,180,41,0.4); animation:ab 1.5s infinite; }
+.state-badge.FIRE  { background:rgba(138,0,32,0.5);  color:var(--fire-g);  border:1px solid rgba(255,34,85,0.5); animation:fb 0.8s infinite; }
+@keyframes ab { 0%,100%{box-shadow:0 0 0 rgba(240,180,41,0)} 50%{box-shadow:0 0 8px rgba(240,180,41,0.4)} }
+@keyframes fb { 0%,100%{box-shadow:0 0 0 rgba(255,34,85,0)} 50%{box-shadow:0 0 12px rgba(255,34,85,0.6)} }
+
+.state-dot { width:5px; height:5px; border-radius:50%; }
+.WATCH .state-dot  { background:var(--watch-t); }
+.ARMED .state-dot  { background:var(--armed-t); animation:pd 0.8s infinite alternate; }
+.FIRE  .state-dot  { background:var(--fire-g);  animation:pd 0.4s infinite alternate; }
+
+/* ── CARD SECTIONS ── */
+.ct { padding:12px 12px 8px; display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.cl { flex:1; }
+.rank { font-family:'Space Mono',monospace; font-size:9px; color:var(--gray); letter-spacing:2px; margin-bottom:3px; }
+.cname { font-size:15px; font-weight:700; line-height:1.2; }
+.ccode { font-family:'Space Mono',monospace; font-size:10px; color:var(--gray); margin-top:2px; }
+.cr { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0; }
+.grade { font-family:'Bebas Neue',sans-serif; font-size:22px; line-height:1; }
+.grade.S{color:#ff6ef7;text-shadow:0 0 10px #ff6ef7} .grade.A{color:var(--green);text-shadow:0 0 10px var(--green)} .grade.B{color:var(--gold);text-shadow:0 0 10px var(--gold)}
+.score-n { font-family:'Space Mono',monospace; font-size:10px; color:var(--gray); }
+
+.pr { padding:0 12px 8px; display:flex; align-items:center; gap:10px; }
+.pval { font-family:'Space Mono',monospace; font-size:17px; font-weight:700; }
+.cpill { font-family:'Space Mono',monospace; font-size:11px; font-weight:700; padding:3px 7px; border-radius:3px; }
+.cpill.up{background:rgba(0,210,140,0.15);color:var(--green)} .cpill.dn{background:var(--red-d);color:var(--red)} .cpill.fl{background:var(--bg3);color:var(--gray)}
+.vr { font-family:'Space Mono',monospace; font-size:9px; color:var(--gray); margin-left:auto; }
+.vr span { color:var(--gold); }
+
+.state-row { padding:0 12px 8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+.status-tag { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:3px; font-size:10px; font-weight:700; letter-spacing:1px; }
+.st-bon  { background:rgba(255,110,247,0.1); color:#ff6ef7; border:1px solid rgba(255,110,247,0.2); }
+.st-bpre { background:var(--green-d); color:var(--green); border:1px solid var(--border); }
+.st-pb   { background:var(--gold-d); color:var(--gold); border:1px solid rgba(240,180,41,0.2); }
+.st-up   { background:rgba(74,96,112,0.2); color:var(--gray); border:1px solid var(--border2); }
+
+/* FIRE 트리거 사유 */
+.fire-reason {
+  margin:0 12px 8px; padding:8px 10px;
+  background:rgba(255,34,85,0.08); border:1px solid rgba(255,34,85,0.25);
+  border-radius:4px; font-family:'Space Mono',monospace;
+  font-size:10px; color:#ffaaaa; line-height:1.6;
+}
+.fire-reason strong { color:var(--fire-g); }
+
+/* score bars */
+.bars { padding:0 12px 10px; }
+.bar-r { display:flex; align-items:center; gap:7px; margin-bottom:4px; }
+.bar-l { font-family:'Space Mono',monospace; font-size:9px; color:var(--gray); width:40px; flex-shrink:0; }
+.bar-t { flex:1; height:4px; background:var(--bg3); border-radius:3px; overflow:hidden; }
+.bar-f { height:100%; border-radius:3px; transition:width 0.8s cubic-bezier(0.4,0,0.2,1); width:0%; }
+.bf-st{background:linear-gradient(90deg,#00aaff,#0066ff)}
+.bf-ti{background:linear-gradient(90deg,var(--green),var(--green2))}
+.bf-ca{background:linear-gradient(90deg,var(--gold),#ffcc44)}
+.bf-sb{background:linear-gradient(90deg,#aa66ff,#cc88ff)}
+.bar-v { font-family:'Space Mono',monospace; font-size:9px; color:var(--gray); width:26px; text-align:right; flex-shrink:0; }
+
+/* chips */
+.chips { padding:0 12px 10px; display:flex; flex-wrap:wrap; gap:4px; }
+.chip { font-family:'Space Mono',monospace; font-size:9px; padding:2px 7px; border-radius:2px; }
+.chip.r { background:rgba(0,210,140,0.08); border:1px solid rgba(0,210,140,0.18); color:var(--green); }
+.chip.w { background:var(--red-d); border:1px solid rgba(255,69,96,0.2); color:var(--red); }
+
+/* armed reasons */
+.armed-reasons { margin:0 12px 8px; padding:7px 10px; background:rgba(240,180,41,0.06); border:1px solid rgba(240,180,41,0.2); border-radius:4px; font-family:'Space Mono',monospace; font-size:9px; color:#b08030; line-height:1.7; }
+.armed-reasons strong { color:var(--gold); }
+
+/* footer */
+.cfoot { padding:7px 12px; background:rgba(0,0,0,0.2); border-top:1px solid var(--border2); display:flex; align-items:center; justify-content:space-between; }
+.dq { display:flex; gap:7px; flex-wrap:wrap; }
+.dqi { font-family:'Space Mono',monospace; font-size:8px; }
+.dqi.exact{color:var(--green);opacity:0.6} .dqi.proxy{color:var(--gold);opacity:0.6}
+.dqi::before{content:'● ';font-size:6px}
+.th { font-family:'Space Mono',monospace; font-size:8px; color:var(--gray); }
+
+/* FABs */
+.fab { position:fixed; bottom:20px; right:14px; width:46px; height:46px; background:var(--bg3); border:1px solid var(--border); border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:17px; box-shadow:0 4px 16px rgba(0,0,0,0.5); z-index:50; transition:all 0.2s; }
+.fab:hover { background:var(--green-d); border-color:var(--green); }
+.fab-up { position:fixed; bottom:74px; right:14px; width:38px; height:38px; background:var(--bg3); border:1px solid var(--border2); border-radius:50%; display:none; align-items:center; justify-content:center; cursor:pointer; font-size:13px; z-index:50; }
+.fab-up.show { display:flex; }
+
+/* ARMED toggle button */
+.armed-btn {
+  display:flex; align-items:center; gap:5px;
+  padding:6px 12px; background:rgba(240,180,41,0.1);
+  border:1px solid rgba(240,180,41,0.3); border-radius:4px;
+  font-family:'Space Mono',monospace; font-size:10px; color:var(--gold);
+  cursor:pointer; letter-spacing:1px;
+}
+.armed-btn:hover { background:rgba(240,180,41,0.2); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">
+    <div class="eye-wrap"></div>
+    <div>
+      <div class="logo-text">CANDIDATE</div>
+      <div class="logo-sub">눈(👁) + 신경계 · v2.0</div>
+    </div>
+  </div>
+  <div class="header-r">
+    <div class="limit-toggle">
+      <button class="limit-btn active" onclick="setLimit(10)" id="btn10">10</button>
+      <button class="limit-btn"        onclick="setLimit(20)" id="btn20">20</button>
+    </div>
+    <button class="armed-btn" onclick="loadArmed()" id="armedBtn">🔒 ARMED</button>
+    <button class="scan-btn" id="scanBtn" onclick="runScan()">
+      <div class="dot"></div>SCAN
+    </button>
+    <div class="kst" id="clock">--:--:--</div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar" id="sb">
+  <div class="si"><div class="sdot" id="sdot"></div><span id="smode">READY</span></div>
+  <div class="si" id="si1" style="display:none">스캔: <span class="v" id="si1v">--</span></div>
+  <div class="si" id="si2" style="display:none">통과: <span class="v" id="si2v">--</span></div>
+  <div class="si warn" id="si3" style="display:none">완료: <span class="v" id="si3v">--</span></div>
+  <div class="si" id="si4" style="display:none">ARMED: <span class="v" id="si4v" style="color:var(--gold)">--</span></div>
+  <div class="si" id="si5" style="display:none">FIRE: <span class="v" id="si5v" style="color:var(--fire-g)">--</span></div>
+  <div class="si" style="margin-left:auto; font-size:9px; color:var(--gray)">IDLE→WATCH→<span style="color:var(--gold)">ARMED</span>→<span style="color:var(--fire-g)">FIRE</span></div>
+</div>
+
+<!-- ARMED TICKER -->
+<div class="armed-ticker" id="armedTicker">
+  <div class="ticker-inner" id="tickerInner"></div>
+</div>
+
+<!-- FIRE BANNER -->
+<div class="fire-banner" id="fireBanner">
+  <div class="fire-banner-inner">
+    <div class="fire-badge">🔥 FIRE DETECTED</div>
+    <div id="fireItems"></div>
+  </div>
+</div>
+
+<!-- NOTE -->
+<div class="note" id="note">
+  ⚠️ <strong>1차 후보 스캐너</strong> — MA5/MA20/20일고가는 proxy값(v1).
+  <strong>ARMED</strong> 종목에서만 FIRE 트리거 발동.
+  정밀 진입 판정은 <strong>트리니티(건눌재/안눌상)</strong>에서 확인하세요.
+</div>
+
+<!-- MAIN -->
+<div class="main" id="main">
+  <div class="empty" id="emptyState">
+    <div style="font-size:38px">👁</div>
+    <div>SCAN을 눌러 후보를 탐색하세요</div>
+    <div style="font-size:9px;margin-top:4px;color:#334455">IDLE → WATCH → ARMED → FIRE</div>
+  </div>
+  <div class="loading" id="loadingEl">
+    <div class="radar">
+      <div class="rr"></div><div class="rr"></div><div class="rr"></div>
+      <div class="rsweep"></div>
+      <div class="rdot" style="top:18px;left:58px"></div>
+      <div class="rdot" style="top:66px;left:28px;animation-delay:0.4s"></div>
+      <div class="rdot" style="top:52px;left:78px;animation-delay:0.8s"></div>
+    </div>
+    <div class="ltext">SCANNING MARKET...</div>
+  </div>
+  <div id="results" style="display:none">
+    <div class="summary" id="sumRow"></div>
+    <div class="cards" id="cardsEl"></div>
+  </div>
+</div>
+
+<!-- FABs -->
+<button class="fab" onclick="toggleLog()">📋</button>
+<button class="fab-up" id="fabUp" onclick="window.scrollTo({top:0,behavior:'smooth'})">⬆</button>
+
+<!-- LOG PANEL -->
+<div id="logPanel" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.88);backdrop-filter:blur(4px);overflow-y:auto;padding:14px;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;max-width:580px;margin:0 auto;overflow:hidden;">
+    <div style="padding:12px 14px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:3px;color:var(--green)">SCAN LOG + STATE LOG</div>
+      <button onclick="toggleLog()" style="background:none;border:1px solid var(--border);color:var(--gray);padding:4px 10px;border-radius:3px;font-family:'Space Mono',monospace;font-size:10px;cursor:pointer;">✕ 닫기</button>
+    </div>
+    <div id="logBody" style="padding:14px;"></div>
+  </div>
+</div>
+
+<script>
+const API = 'https://candidate-angine-production.up.railway.app';
+const TRINITY_API = 'https://fastapi-production-f631.up.railway.app';
+let currentLimit = 10;
+let lastCandidates = [];
+
+// ── CLOCK (KST) ──────────────────────────────────────────────────────
+function tick() {
+  const now = new Date();
+  // KST = UTC+9
+  const kst = new Date(now.getTime() + 9 * 3600 * 1000);
+  const h = String(kst.getUTCHours()).padStart(2,'0');
+  const m = String(kst.getUTCMinutes()).padStart(2,'0');
+  const s = String(kst.getUTCSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = h+':'+m+':'+s;
+}
+setInterval(tick, 1000); tick();
+
+window.addEventListener('scroll', () => {
+  document.getElementById('fabUp').classList.toggle('show', scrollY > 200);
+});
+
+function setLimit(n) {
+  currentLimit = n;
+  document.getElementById('btn10').classList.toggle('active', n===10);
+  document.getElementById('btn20').classList.toggle('active', n===20);
+}
+
+// ── SCAN ─────────────────────────────────────────────────────────────
+async function runScan() {
+  const btn = document.getElementById('scanBtn');
+  btn.classList.add('loading');
+  btn.innerHTML = '<div class="dot"></div>SCANNING';
+
+  hide('emptyState'); hide('results');
+  show('loadingEl', 'flex');
+  hide('note');
+
+  document.getElementById('smode').textContent = 'SCANNING...';
+  document.getElementById('sdot').style.background = 'var(--gold)';
+
+  try {
+    const [cRes, lRes] = await Promise.all([
+      fetch(`${API}/candidates?limit=${currentLimit}`),
+      fetch(`${API}/candidates/log?last=1`),
+    ]);
+    const cData = await cRes.json();
+    const lData = await lRes.json();
+
+    lastCandidates = cData.candidates || [];
+
+    // WATCH 등록 (상태 머신 — Trinity API 호출)
+    await registerWatchStates(lastCandidates);
+
+    // 상태 조회
+    const stateMap = await fetchStateMap(lastCandidates.map(c => c.code));
+
+    hide('loadingEl');
+    renderResults(cData, lData, stateMap);
+    renderStatusBar(cData, lData.logs?.[0], stateMap);
+    renderArmedTicker(stateMap);
+    renderFireBanner(stateMap);
+    showEl('note');
+
+  } catch(e) {
+    hide('loadingEl');
+    showEl('emptyState');
+    document.getElementById('emptyState').innerHTML =
+      `<div style="font-size:32px">⚠️</div><div>API 연결 실패</div><div style="font-size:9px;color:var(--red);margin-top:4px">${e.message}</div>`;
+    document.getElementById('smode').textContent = 'ERROR';
+    document.getElementById('sdot').style.background = 'var(--red)';
+  }
+
+  btn.classList.remove('loading');
+  btn.innerHTML = '<div class="dot"></div>SCAN';
+}
+
+// ── WATCH 등록 ───────────────────────────────────────────────────────
+async function registerWatchStates(candidates) {
+  // Candidate 결과를 Trinity 상태 머신에 WATCH로 등록
+  const promises = candidates.map(c =>
+    fetch(`${TRINITY_API}/state/evaluate/watch`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        code: c.code, name: c.name,
+        candidate_score: c.score,
+        candidate_status: c.status,
+      })
+    }).catch(() => null)
+  );
+  await Promise.allSettled(promises);
+}
+
+// ── 상태 조회 ─────────────────────────────────────────────────────────
+async function fetchStateMap(codes) {
+  const map = {};
+  try {
+    const res  = await fetch(`${TRINITY_API}/state`);
+    const data = await res.json();
+    (data.states || []).forEach(s => { map[s.code] = s; });
+  } catch(e) {
+    // Trinity API 미응답 시 빈 맵으로 폴백
+  }
+  return map;
+}
+
+// ── ARMED 목록 로드 ───────────────────────────────────────────────────
+async function loadArmed() {
+  try {
+    const res  = await fetch(`${TRINITY_API}/state/armed`);
+    const data = await res.json();
+    alert(`🔒 ARMED 종목 ${data.count}개\n\n` +
+      (data.armed || []).map(a => `${a.name} — ${a.armed_at}\n  ${a.armed_reasons?.join(' · ')}`).join('\n\n') +
+      '\n\n상태 없으면 트리거 무시 · 트리거 없으면 진입 금지');
+  } catch(e) {
+    alert('ARMED 조회 실패: ' + e.message);
+  }
+}
+
+// ── STATUS BAR ────────────────────────────────────────────────────────
+function renderStatusBar(cData, log, stateMap) {
+  document.getElementById('smode').textContent = cData.mode === 'real' ? 'REAL' : 'MOCK';
+  document.getElementById('sdot').style.background = cData.mode === 'real' ? 'var(--green)' : 'var(--gold)';
+
+  if (log) {
+    showSI('si1', log.total_scanned);
+    showSI('si2', log.passed_score);
+    showSI('si3', log.scanned_at?.slice(11) || '--');
+  }
+
+  const armed = Object.values(stateMap).filter(s => s.state === 'ARMED').length;
+  const fire  = Object.values(stateMap).filter(s => s.state === 'FIRE').length;
+  if (armed > 0) showSI('si4', armed);
+  if (fire  > 0) showSI('si5', fire);
+}
+
+function showSI(id, val) {
+  const el = document.getElementById(id);
+  el.style.display = 'flex';
+  document.getElementById(id + 'v').textContent = val;
+}
+
+// ── ARMED TICKER ──────────────────────────────────────────────────────
+function renderArmedTicker(stateMap) {
+  const armed = Object.values(stateMap).filter(s => s.state === 'ARMED');
+  const ticker = document.getElementById('armedTicker');
+  if (armed.length === 0) { ticker.classList.remove('show'); return; }
+
+  const items = armed.map(a =>
+    `<span class="ticker-item">${a.name} ARMED · ${a.armed_reasons?.slice(0,2).join(' · ')}</span>`
+  ).join('');
+  // 무한 스크롤을 위해 2배 복제
+  document.getElementById('tickerInner').innerHTML = items + items;
+  ticker.classList.add('show');
+}
+
+// ── FIRE BANNER ───────────────────────────────────────────────────────
+function renderFireBanner(stateMap) {
+  const fires = Object.values(stateMap).filter(s => s.state === 'FIRE');
+  const banner = document.getElementById('fireBanner');
+  if (fires.length === 0) { banner.classList.remove('show'); return; }
+
+  document.getElementById('fireItems').innerHTML = fires.map(f =>
+    `<span class="fire-item">🔥 ${f.name} — ${f.fire_reasons?.join(' · ')}</span>`
+  ).join('');
+  banner.classList.add('show');
+}
+
+// ── RENDER RESULTS ────────────────────────────────────────────────────
+function renderResults(data, logData, stateMap) {
+  const list = data.candidates || [];
+  const armed = list.filter(c => stateMap[c.code]?.state === 'ARMED').length;
+  const fires = list.filter(c => stateMap[c.code]?.state === 'FIRE').length;
+
+  document.getElementById('sumRow').innerHTML = `
+    <div class="sc"><span class="sv c-white">${list.length}</span><span class="sl">후보 수</span></div>
+    <div class="sc"><span class="sv c-pink">${list.filter(c=>c.grade==='S').length}</span><span class="sl">S등급</span></div>
+    <div class="sc"><span class="sv c-gold">${armed}</span><span class="sl">ARMED</span></div>
+    <div class="sc"><span class="sv c-fire">${fires}</span><span class="sl">FIRE</span></div>
+  `;
+
+  const grid = document.getElementById('cardsEl');
+  grid.innerHTML = '';
+
+  if (list.length === 0) {
+    grid.innerHTML = '<div class="empty"><div style="font-size:28px">📭</div><div>기준 충족 종목 없음</div></div>';
+  }
+
+  list.forEach((c, i) => {
+    const state = stateMap[c.code] || { state: 'WATCH' };
+    const card  = buildCard(c, i+1, state);
+    grid.appendChild(card);
+    setTimeout(() => {
+      const fills = card.querySelectorAll('.bar-f');
+      const bd    = c.score_breakdown || {};
+      fills.forEach(f => {
+        const t = f.dataset.t, mx = f.dataset.mx;
+        f.style.width = ((bd[t]||0) / mx * 100) + '%';
+      });
+    }, i * 80 + 200);
+  });
+
+  showEl('results');
+}
+
+// ── BUILD CARD ────────────────────────────────────────────────────────
+function buildCard(c, rank, stateEntry) {
+  const div = document.createElement('div');
+  const st  = stateEntry.state || 'WATCH';
+  div.className = `card grade-${c.grade} state-${st}`;
+  div.style.animationDelay = (rank * 0.07) + 's';
+
+  const ch  = c.change_rate || 0;
+  const chC = ch > 0 ? 'up' : ch < 0 ? 'dn' : 'fl';
+  const chS = (ch > 0 ? '+' : '') + ch.toFixed(2) + '%';
+  const stC = {'돌파 중':'st-bon','돌파 직전':'st-bpre','눌림 구간':'st-pb'}[c.status] || 'st-up';
+  const stD = {'돌파 중':'🔴','돌파 직전':'🟢','눌림 구간':'🟡'}[c.status] || '⚪';
+  const bd  = c.score_breakdown || {};
+  const dq  = c.data_quality    || {};
+
+  // 상태 배지 라벨
+  const stateLabel = { IDLE:'IDLE', WATCH:'WATCH', ARMED:'🔒 ARMED', FIRE:'🔥 FIRE' }[st] || st;
+
+  // ARMED 사유
+  const armedReasons = stateEntry.armed_reasons?.length
+    ? `<div class="armed-reasons"><strong>ARMED 사유:</strong> ${stateEntry.armed_reasons.join(' · ')}</div>`
+    : '';
+
+  // FIRE 사유
+  const fireReason = st === 'FIRE' && stateEntry.fire_reasons?.length
+    ? `<div class="fire-reason"><strong>🔥 FIRE 트리거:</strong> ${stateEntry.fire_reasons.join(' · ')}<br><span style="font-size:8px;color:var(--gray)">${stateEntry.fire_at || ''}</span></div>`
+    : '';
+
+  const reasons = (c.reason||[]).map(r=>`<span class="chip r">${r}</span>`).join('');
+  const risks   = (c.risk||[]).map(r=>`<span class="chip w">⚠ ${r}</span>`).join('');
+
+  const dqHtml = ['가격|price','거래량|volume','VWAP|vwap','MA20|ma20','20일고|high_20d']
+    .map(kv => { const [k,v]=kv.split('|'); return `<span class="dqi ${dq[v]||'proxy'}">${k}</span>`; }).join('');
+
+  div.innerHTML = `
+    <div class="ct">
+      <div class="cl">
+        <div class="rank">#${rank} · RANK</div>
+        <div class="cname">${c.name}</div>
+        <div class="ccode">${c.code}</div>
+      </div>
+      <div class="cr">
+        <div class="grade ${c.grade}">${c.grade}</div>
+        <div class="score-n">${c.score}pt</div>
+      </div>
+    </div>
+
+    <div class="pr">
+      <div class="pval">${c.price?.toLocaleString() || '--'}원</div>
+      <div class="cpill ${chC}">${chS}</div>
+      <div class="vr">거래량비 <span>${c.volume_ratio||'--'}x</span></div>
+    </div>
+
+    <div class="state-row">
+      <span class="status-tag ${stC}">${stD} ${c.status}</span>
+      <span class="state-badge ${st}"><span class="state-dot"></span>${stateLabel}</span>
+    </div>
+
+    ${fireReason}
+    ${st === 'ARMED' ? armedReasons : ''}
+
+    <div class="bars">
+      <div class="bar-r"><div class="bar-l">구조</div><div class="bar-t"><div class="bar-f bf-st" data-t="structure" data-mx="40"></div></div><div class="bar-v">${bd.structure||0}/40</div></div>
+      <div class="bar-r"><div class="bar-l">타이밍</div><div class="bar-t"><div class="bar-f bf-ti" data-t="timing" data-mx="30"></div></div><div class="bar-v">${bd.timing||0}/30</div></div>
+      <div class="bar-r"><div class="bar-l">촉매</div><div class="bar-t"><div class="bar-f bf-ca" data-t="catalyst" data-mx="20"></div></div><div class="bar-v">${bd.catalyst||0}/20</div></div>
+      <div class="bar-r"><div class="bar-l">안정성</div><div class="bar-t"><div class="bar-f bf-sb" data-t="stability" data-mx="10"></div></div><div class="bar-v">${bd.stability||0}/10</div></div>
+    </div>
+
+    ${reasons || risks ? `<div class="chips">${reasons}${risks}</div>` : ''}
+
+    <div class="cfoot">
+      <div class="dq">${dqHtml}</div>
+      <div class="th">→ 트리니티에서 판단</div>
+    </div>
+  `;
+  return div;
+}
+
+// ── LOG PANEL ─────────────────────────────────────────────────────────
+function toggleLog() {
+  const p = document.getElementById('logPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  if (p.style.display === 'block') renderLog();
+}
+
+async function renderLog() {
+  const body = document.getElementById('logBody');
+  body.innerHTML = '<div class="ltext" style="text-align:center;padding:20px">LOADING...</div>';
+  try {
+    const [sRes, cRes] = await Promise.all([
+      fetch(`${TRINITY_API}/state/log/all?last=20`).catch(()=>null),
+      fetch(`${API}/candidates/log?last=2`),
+    ]);
+
+    let html = '';
+
+    // 상태 머신 로그
+    if (sRes) {
+      const sData = await sRes.json();
+      if (sData.logs?.length) {
+        html += `<div style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--green);margin-bottom:10px">STATE LOG (최근 ${sData.count}건)</div>`;
+        sData.logs.forEach(l => {
+          const col = l.state_after === 'FIRE' ? 'var(--fire-g)' : l.state_after === 'ARMED' ? 'var(--gold)' : 'var(--watch-t)';
+          html += `<div style="padding:7px 10px;margin-bottom:4px;background:rgba(0,0,0,0.3);border:1px solid var(--border2);border-radius:4px;font-size:11px">
+            <div style="display:flex;justify-content:space-between">
+              <span style="font-weight:700">${l.name}</span>
+              <span style="font-family:'Space Mono',monospace;font-size:9px;color:${col}">${l.state_before} → ${l.state_after}</span>
+            </div>
+            <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--gray);margin-top:3px">${l.reason?.join(' · ')} · ${l.time}</div>
+          </div>`;
+        });
+        html += `<hr style="border-color:var(--border2);margin:16px 0">`;
+      }
+    }
+
+    // 스캔 로그
+    const cData = await cRes.json();
+    if (cData.logs?.length) {
+      html += `<div style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--green);margin-bottom:10px">SCAN LOG</div>`;
+      cData.logs.slice().reverse().forEach(log => {
+        html += `<div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--gray);margin-bottom:8px">
+          ${log.scanned_at} · 스캔 ${log.total_scanned} · 통과 ${log.passed_score}
+        </div>`;
+        (log.passed||[]).forEach(p => {
+          html += `<div style="padding:6px 10px;margin-bottom:3px;background:rgba(0,210,140,0.05);border:1px solid rgba(0,210,140,0.1);border-radius:3px;font-size:11px">
+            <span style="font-weight:600">${p.name}</span>
+            <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--green);margin-left:8px">${p.score}pt · ${p.grade}</span>
+          </div>`;
+        });
+      });
+    }
+
+    body.innerHTML = html || '<div class="empty" style="padding:30px 0">로그 없음</div>';
+  } catch(e) {
+    body.innerHTML = `<div style="color:var(--red);text-align:center;padding:20px;font-family:'Space Mono',monospace;font-size:10px">로그 불러오기 실패</div>`;
+  }
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────
+function hide(id) { const e = document.getElementById(id); if(e) e.style.display='none'; }
+function showEl(id) { const e = document.getElementById(id); if(e) e.style.display='block'; }
+function show(id, d='block') { const e = document.getElementById(id); if(e) e.style.display=d; }
+</script>
+</body>
+</html>
