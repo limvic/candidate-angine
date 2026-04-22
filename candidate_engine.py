@@ -51,7 +51,7 @@ from typing import Optional
 import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi.responses import FileResponse
 
 # ═══════════════════════════════════════════════════════════════════════
 # APP 초기화
@@ -518,6 +518,7 @@ async def scan_candidates(limit: int = 10) -> tuple[list[dict], dict]:
 
 @app.get("/")
 async def root():
+    return FileResponse("index.html")
     """
     Candidate Engine 서비스 정보.
     트리니티 연동 방법 가이드 포함.
